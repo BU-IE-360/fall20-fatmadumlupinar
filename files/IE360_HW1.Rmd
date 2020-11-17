@@ -1,0 +1,268 @@
+---
+title: "IE360 Fall"
+author: "Fatma Nur Dumlupınar"
+date: "17 11 2020"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: yes
+    code_folding: hide
+    theme: journal
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+subtitle: Homework 1
+---
+
+
+# Required Packages and Data
+
+```{r warning=FALSE, message=FALSE}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(lubridate)
+library(RColorBrewer)
+library(zoo)
+
+inflation<-read_excel("data/inflation.xlsx")
+search_enflasyon<-read.csv("data/search_enflasyon.csv",sep = ",")
+search_fiyatartışı<-read.csv("data/search_fiyatartışı.csv",sep = ",")
+
+unemployment<-read_excel("data/monthly_unemployment.xlsx")
+search_işilanı<-read.csv("data/search_işilanı.csv",sep = ",")
+search_işkur<-read.csv("data/search_işkur.csv",sep = ",")
+
+sales<-readRDS(gzcon(url("https://github.com/pjournal/boun01g-data-mine-r-s/blob/gh-pages/Final%20TakeHome/all_data?raw=true")))
+search_araba<-read.csv("data/search_araba.csv",sep = ",")
+
+```
+
+# Data Preparation
+
+```{r warning=FALSE, message=FALSE}
+#for Inflation Analysis
+inflation<-inflation%>%rename(Date=Tarih)%>%
+  mutate(Date=as.POSIXct(strptime(Date,"%Y")))%>%
+  pivot_longer(.,2:27,names_to="Region",
+               values_to="Yearly Inflation Rate")
+
+search_enflasyon<-search_enflasyon%>%rename(Date=Ay,Inflation=enflasyon)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+search_fiyatartışı<-search_fiyatartışı%>%rename(Date=Ay,PriceIncrease=fiyat.artışı)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+
+#for Unemployment Analysis
+
+unemployment<-unemployment%>%rename(Date=Tarih,UnemploymentRate=`TP TIG07`)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+search_işilanı<-search_işilanı%>%rename(Date=Ay, JobPost=iş.ilanı)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+search_işkur<-search_işkur%>%rename(Date=Ay)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+
+#for Car Sales Analysis
+
+car_sales<-sales%>%
+  group_by(year,month)%>%
+  summarise(sales=sum(total_total))
+
+search_araba<-search_araba%>%rename(Date=Ay)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+```
+
+# Data Visualization
+
+## Inflation Analysis
+
+### Yearly Inflation Rate of Regions for each Year
+
+In the inflation data, Turkey is divided into 26 regions which have distinct yearly inflation values for 11 years. The cities in the regions are given below:
+
+**Regions**
+
+1st  Region: İstanbul   
+2nd  Region: Tekirdağ, Edirne, Kırklareli  
+3rd  Region: Balıkesir, Çanakkale
+4th  Region: İzmir  
+5th  Region: Aydın, Denizli, Muğla  
+6th  Region: Manisa, Afyon, Kütahya, Uşak  
+7th  Region: Bursa, Eskişehir, Bilecik  
+8th  Region: Kocaeli, Sakarya, Düzce, Bolu, Yalova    
+9th  Region: Ankara  
+10th Region: Konya, Karaman  
+11th Region: Antalya, Isparta, Burdur  
+12th Region: Adana, Mersin  
+13rd Region: Hatay, Kahramanmaraş, Osmaniye  
+14th Region: Kırıkkale, Aksaray, Niğde, Nevşehir, Kırşehir  
+15th Region: Kayseri, Sivas, Yozgat  
+16th Region: Zonguldak, Karabük, Bartın  
+17th Region: Kastamonu, Çankırı, Sinop  
+18th Region: Samsun, Tokat, Çorum, Amasya  
+19th Region: Trabzon, Ordu, Giresun, Rize, Artvin, Gümüşhane  
+20th Region: Erzurum, Erzincan, Bayburt  
+21st Region: Ağrı, Kars, Iğdır, Ardahan  
+22nd Region: Malatya, Elazığ, Bingöl, Tunceli  
+23rd Region: Van, Muş, Bitlis, Hakkari  
+24th Region: Gaziantep, Adıyaman, Kilis  
+25th Region: Şanlıurfa, Diyarbakır  
+26th Region: Mardin, Batman, Şırnak, Siirt  
+
+```{r warning=FALSE, message=FALSE}
+ggplot(inflation,aes(x=factor(Region),y=`Yearly Inflation Rate`))+
+  geom_bar(stat="identity", aes(fill=Region),color="black")+
+  facet_wrap(~year(Date))+
+  theme(legend.position = "none",
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())+
+  scale_fill_viridis_d()+
+  labs(x="Region",
+      title="Histograms of Yearly Inflation Rates of Regions")
+
+ggplot(inflation,aes(x=factor(year(Date)), y=`Yearly Inflation Rate`))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Yearly Inflation Rates for Regions",
+       title="Yearly Inflation Rates of Regions over the Years between 2010-2020")+
+  scale_fill_viridis_d()
+
+```
+
+The shape of histograms is not changing over the years. However, it is also possible to say fluctuations among the regions can appear in certain years such as 2010, 2018,2019, and 2020 while histograms in the years 2013, 2016, and 2017 have flatter shape. 
+
+
+### Search Volume of the Related Keywords
+
+**Search Volume of "enflasyon" (meaning of "inflation" in Turkish)**
+
+```{r warning=FALSE, message=FALSE}
+ggplot(search_enflasyon,aes(x=factor(year(Date)), y=Inflation))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Search Volume of 'enflasyon'('Inflation')",
+       title="Search Volume of 'enflasyon'('Inflation') over the Years")
+
+```
+
+**Search Volume of "fiyat artışı" (meaning of "price increase" in Turkish)**
+
+```{r warning=FALSE, message=FALSE}
+ggplot(search_fiyatartışı,aes(x=factor(year(Date)), y=PriceIncrease))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Search Volume of 'fiyat artışı'('Price Increase')",
+       title="Search Volume of 'fiyat artışı'('Price Increase') over the Years")
+
+```
+
+Similarity between the boxplots becomes clear after the year 2016. Before this year, the volumes are not affected so much by change in the inflation rate, which may result from relatively low (below 10 percent) rates. The higher rates after 2016 might make people more aware and anxious about inflation. The other reason might be change in preference of the people to learn more about current issues. 
+
+## Unemployment Analysis
+
+### Monthly Unemployment Rates for each Year
+
+Monthly unemployment rates are plotted for 11 years as histograms below:
+
+```{r warning=FALSE, message=FALSE}
+
+ggplot(unemployment,aes(x=factor(month(Date)),y=UnemploymentRate))+
+  geom_bar(stat="identity", aes(fill=month(Date)),color="black")+
+  facet_wrap(~year(Date))+
+  theme(legend.position = "none",
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())+
+  scale_fill_viridis_b()+
+  labs(x="Months",
+       title="Histograms of Monthly Unemployment Rates")
+
+ggplot(unemployment,aes(x=factor(year(Date)), y=UnemploymentRate))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Monthly Unemployment Rates",
+       title="Monthly Unemployment Rates over the Years between 2010-2020")+
+  scale_fill_viridis_d()
+```
+
+It is hard to say the shape of histograms seems similar over the years but some changes between the periods appear in a similar way. For example, the rates go into a decline after the first three month, then increase again after the sixth month. However, it is not possible to say exactly that there is a pattern for the last three months.
+
+### Search Volume of the Related Keywords
+
+**Search Volume of "iş ilanı" (meaning of "job post" in Turkish)**
+
+```{r message=FALSE, warning=FALSE}
+ggplot(search_işilanı,aes(x=factor(year(Date)), y=JobPost))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Search Volume of 'iş ilanı'('Job Post')",
+       title="Search Volume of 'iş ilanı'('Job Post') over the Years")
+
+```
+
+
+**Search Volume of "işkur" (abbreviation of "Turkish Employment Agency")**
+
+```{r message=FALSE, warning=FALSE}
+ggplot(search_işkur,aes(x=factor(year(Date)), y=işkur))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Search Volume of 'işkur'('Turkish Employment Agency')",
+      title="Search Volume of 'işkur'('Turkish Employment Agency') over the Years")
+
+```
+
+Apparently, change in the search volume of "iş ilanı" over the years looks quite similar to the change in unemployment rate. The years in which there is a decrease or increase are the same. However, the pattern for the search volume of "iş ilanı" are not as similar as the pattern of search volume of "iş ilanı" even if it can also react to the change in unemployment rate immediately.
+
+## Car Sales Analysis
+
+### Monthly Car Sales Amount for each Year
+
+Monthly car sales amounts are plotted for the years between 2010-2020 below:
+
+```{r message=FALSE, warning=FALSE}
+ggplot(car_sales,aes(x=month,y=sales))+
+  geom_bar(stat="identity", aes(fill=month),color="black")+
+  facet_wrap(~(year))+
+  theme(legend.position = "none",
+        axis.ticks.x = element_blank(),
+        axis.text.x = element_blank())+
+  scale_fill_viridis_c()+
+  labs(x="Months",
+       y="Monthly Car Sales",
+       title="Histograms of Monthly Car Sales Amount")
+
+ggplot(car_sales,aes(x=factor(year), y=sales))+
+  geom_boxplot(aes(fill=factor(year)))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Monthly Car Sales",
+       title="Monthly Car Sales over the Years")+
+  scale_fill_viridis_d()
+
+```
+
+Even if the amounts can change over the years, the shape of histograms are not changing significantly. There is a fluctuation which peaks in March, April or May and drops to the minimum on September. However, the pattern is different from the other years' probably because of increasing taxes on cars.
+
+### Search Volume of the Related Keyword
+
+**Search Volume of "araba" (meaning of "job post" in Turkish)**
+
+```{r message=FALSE, warning=FALSE}
+ggplot(search_araba,aes(x=factor(year(Date)), y=araba))+
+  geom_boxplot(aes(fill=factor(year(Date))))+
+  theme(legend.position = "none")+
+  labs(x="Year",y="Search Volume of 'araba'('Car')",
+       title="Search Volume of 'araba'('Car') over the Years")
+
+```
+
+The boxplots for the car sales amounts and the search volume of "araba" are quite similar especially after the year 2016. This can imply that the car sales are increasing when people search cars on Google more.
+
+
