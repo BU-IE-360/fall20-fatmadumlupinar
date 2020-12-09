@@ -1,0 +1,309 @@
+---
+title: "IE360 Fall"
+author: "Fatma Nur Dumlupınar"
+date: "11 12 2020"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: yes
+    code_folding: hide
+    theme: journal
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+subtitle: Homework 2
+---
+
+# Introduction
+
+Time-dependent changes in economic data can be considered as time series. However, in order to make an economic analysis in detail, it is necessary to master the dynamics of the economy because these different types of data can affect each other directly or indirectly at different rates. This may not be always that easy to observe as the duration of action can also differ or there may be other current effects. 
+
+Nevertheless, in this analysis, some data provided by [Central Bank of the Republic of Turkey](https://evds2.tcmb.gov.tr/) will be handled and their relationship with each other will be examined based on basic economic knowledge. 
+
+First, it is necessary to decide on 3 data sets from 3 different categories that I think are related to each other. Dollar exchange rate data is the first one I chose because it has a great commercial impact on Turkey's economy especially in these days. Later, when I evaluated the product groups that could be greatly affected by the increase of dollar exchange rate, one of the first groups that came to my mind was the automobiles that we are mostly foreign dependent on. So, the price index of vehicles chosen as the second economic measure will most likely increase with the effect of the exchange rate. Another interesting data to examine is the interest rate applied to car loans. Although there are various factors that determine the interest rate, it can be said that it is related to the price indices and exchange rates considering the general logic of the interest rate. The reason for this is that when determining the interest rates, the central bank takes into account the targeted inflation rate in the future period and states a rate accordingly. Since inflation is calculated on the basis of price indices, we can easily talk about a natural relationship between the price index and the interest rate.[1] Additionally, it is possible to mention exchange rates among the main factors affecting inflation. The exchange rate, which has an effect on the inflation rate affected by many different factors, can be associated with the interest rate for the same reason. 
+
+In short, this report is to clarify whether the exchange rate of USD, the price index of vehicles and the interest rate applied on vehicles are related to each other. The monthly based time series data for nearly 9 years is determined. It will be visualized and some correlation analysis will be made in the analysis section.  
+
+# Analysis
+
+```{r message=FALSE,warning=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(readxl)
+library(lubridate)
+library(zoo)
+library(corrplot)
+library(hrbrthemes)
+library(viridis)
+library(ggridges)
+
+setwd("C:/Users/fatma/Desktop/IE360/HW/hw2")
+
+data<-read_excel("data/data.xlsx")  
+
+data<-data%>%rename(Date=Tarih,
+                      ExchangeRate_USD=`TP DK USD S YTL`, 
+                      Vehicle.InterestRate=`TP KTF11`,
+                      Vehicle.PriceIndex=`TP FG J071`)%>%
+  mutate(Date=as.Date(as.yearmon(Date)))
+
+data<-data[,c(1,2,5,8)]
+
+```
+
+## Analysis with the Real Values 
+
+### Visualization of Time Series
+
+Monthly time series data of about nine years are plotted as follows:
+
+```{r message=FALSE,warning=FALSE}
+ggplot(data,aes(x=Date))+
+  geom_line(size=1,color="brown",aes(y=ExchangeRate_USD))+
+  theme_ipsum()+
+  ggtitle("Time Series of Exchange Rate USD/TRY",
+          subtitle="Between the Years 2012-2020")
+
+ggplot(data,aes(x=Date))+
+  geom_line(size=1,color="purple",aes(y=Vehicle.PriceIndex))+
+  theme_ipsum()+
+  ggtitle("Time Series of Price Index of Vehicle",
+          subtitle="Between the Years 2012-2020")
+ggplot(data,aes(x=Date))+
+  geom_line(size=1,color="darkgreen",aes(y=Vehicle.InterestRate))+
+  theme_ipsum()+
+  ggtitle("Time Series of Vehicle Interest Rate",
+          subtitle="Between the Years 2012-2020")
+
+```
+
+When looking at the changes of the measurements over time, the followings can be understood visually: 
+
+- Dollar exchange rate and vehicle price index are highly correlated and always tend to increase except for some breaks. 
+
+- While small fluctuations in the exchange rate and the interest rate are more visible, the price index follows a smoother course. 
+
+- It can be said that all three data are related to each other until 2019. 
+
+- While the vehicle interest rate falls sharply after 2019, the other two data continue to increase similarly. The reason why the interest rate decreases so sharply in 2019 is that the Central Bank decides to pull the policy interest down too much, which is a rare occasion.[2] After the transition from declining to stable, the effect of the pandemic in our country is reflected in the graphic at the beginning of 2020 by again interest rates decreased to mitigate the effects of the pandemic.
+
+### Visualization of Distributions 
+
+
+```{r message=FALSE,warning=FALSE}
+dist1<-data%>%
+  ggplot(.,aes(x=ExchangeRate_USD))+
+  geom_density(color="darkgrey",fill="brown",adjust=1.5, alpha=.4) +
+  theme_ipsum()+
+  ggtitle("Distribution of Exchange Rate Values")
+dist1
+print(paste("Variance of Exchange Rate Values:", var(data$ExchangeRate_USD)))
+print(paste("Mean of Exchange Rate Values:",mean(data$ExchangeRate_USD)))
+
+dist1+
+  facet_wrap(~year(Date))
+
+```
+
+The average value of the exchange rate is very close to the minimum value of 9 years of data. This can be attributed to the fact that the time interval for initial small values is wider and the increase in the ratio in recent years has been sharper. These reasons can also be supported by annual density plots. Although the variance is lower at the beginning, the variance of the values increase due to the large increases in 2018, 2019 and 2020. It is also not surprising that the average values increase from year to year. 
+
+
+```{r message=FALSE,warning=FALSE}
+dist2<-data%>%
+  ggplot(.,aes(x=Vehicle.PriceIndex))+
+  geom_density(color="darkgrey",fill="purple",adjust=1.5, alpha=.4) +
+  theme_ipsum()+
+  ggtitle("Distribution of Price Index Values")
+dist2
+print(paste("Variance of Price Index Values:",var(data$Vehicle.PriceIndex)))
+print(paste("Mean of Price Index Values:",mean(data$Vehicle.PriceIndex)))
+
+dist2+
+  facet_wrap(~year(Date))
+
+```
+
+
+It can be seen that the shape of the first chart is almost the same as the first chart in the exchange rate, the only difference is the scale. Therefore, the same analysis can be made for the price index.
+
+```{r message=FALSE,warning=FALSE}
+dist3<-data%>%
+  ggplot(.,aes(x=Vehicle.InterestRate))+
+  geom_density(color="darkgrey",fill="darkgreen",adjust=1.5, alpha=.4) +
+  theme_ipsum()+
+  ggtitle("Distribution of Interest Rate Values")
+dist3
+print(paste("Variance of Interest Rate Values:",var(data$Vehicle.InterestRate)))
+print(paste("Mean of Interest Rate Values:",mean(data$Vehicle.InterestRate)))
+
+dist3+
+  facet_wrap(~year(Date))
+
+```
+
+The situation is similar in the interest rate plot, but the average value is not as close to the minimum as in the others. In addition, although the variance in the interest rate increases over the years, a smaller rise is observed compared with the increasing variance in the other two measures. 
+
+### Visualization of Pairwise Correlations
+
+In addition to visual inspection, when correlation values between the time series are calculated, it is seen that the relationship between the vehicle price index and the USD exchange rate is the highest as expected. When looking at other pairwise correlation values, even if such a high value is not obtained, a value that confirms that they have relationships is reached. Demonstration of the correlation values is as follows:
+
+
+```{r message=FALSE,warning=FALSE}
+cor_numVar <- cor(data[,c(2,3,4)], use="pairwise.complete.obs") 
+
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+```
+
+
+## Analysis with the Normalized Values 
+
+### Visualization of Time Series
+
+Comparison of change amounts may not be very convenient since the magnitude of the values is not similar. For this reason, if we normalize all the values, the comparison of the values that will be in the same scale can be done without any problem.
+
+```{r message=FALSE,warning=FALSE}
+min1<-min(data$ExchangeRate_USD)
+max1<-max(data$ExchangeRate_USD)
+min2<-min(data$Vehicle.InterestRate)
+max2<-max(data$Vehicle.InterestRate)
+min3<-min(data$Vehicle.PriceIndex)
+max3<-max(data$Vehicle.PriceIndex)
+
+data<-data%>%mutate(N_ExchangeRate_USD=(ExchangeRate_USD-min1)/(max1-min1),
+              N_Vehicle.InterestRate=(Vehicle.InterestRate-min2)/(max2-min2),
+              N_Vehicle.PriceIndex=(Vehicle.PriceIndex-min3)/(max3-min3))
+
+```
+
+```{r message=FALSE,warning=FALSE}
+data%>%pivot_longer(.,cols=c(N_ExchangeRate_USD,N_Vehicle.InterestRate,N_Vehicle.PriceIndex),
+                    names_to="name",
+                    values_to="values")%>%
+  ggplot(.,aes(x=Date,y=values,color=name,shape=name))+
+  geom_line(size=1)+
+  labs(color="Normalized Economic Measures",
+       y="Normalized Values")+
+  scale_colour_discrete()+
+  theme_ipsum()+
+  ggtitle("Comparison of Time Series",
+          subtitle="With the Normalized Values")
+
+```
+
+The interest rate time series fluctuates the most over time. The fluctuations may be due to the re-determination of interest rates against economic changes and this process probably takes time.These fluctuations and the rapid decline after 2019 may be the reason for the lower correlation values initially calculated. Besides, these three time series follow each other in general until 2019 and are similarly affected by the changes.
+
+### Visualization of Distributions
+
+```{r message=FALSE,warning=FALSE}
+norm1<-data%>%pivot_longer(.,cols=c(N_ExchangeRate_USD,N_Vehicle.PriceIndex,N_Vehicle.InterestRate),
+                    names_to="name",
+                    values_to="values")%>%
+  ggplot(.,aes(x=values,y=factor(name),fill=factor(name)))+
+  geom_density_ridges() +
+  labs(color="Normalized Economic Measures",
+       y="Normalized Values")+
+  theme_ipsum()+
+  theme(legend.position = "none")+
+  ggtitle("Distribution of the Normalized Values")
+norm1
+
+print(paste("Variance of the Normalized Exchange Rate:",var(data$N_ExchangeRate_USD)))
+print(paste("Variance of the Normalized Price Index:",var(data$N_Vehicle.PriceIndex)))
+print(paste("Variance of the Normalized Interest Rate:",var(data$N_Vehicle.InterestRate)))
+
+norm1+
+  facet_wrap(~year(Date))
+
+```
+
+Since normalization does not affect the shape of the density plots, the visual analysis in the first part remains valid. Thanks to normalization, all three plots can be expressed on the same scale and variances can be compared more clearly. According to the results, although the variance values are very close, the smallest value is observed in the interest rate and the largest value in the exchange rate.
+
+
+### Visualization of Pairwise Correlations
+
+Since normalizing the values will not change the correlation values, the correlation value calculated on all data will not change. For this reason, this time we can calculate with another test method, Kendall.
+
+```{r}
+res1 <- cor.test(data$N_ExchangeRate_USD, data$N_Vehicle.InterestRate,  method="kendall")
+res1
+res2 <- cor.test(data$N_ExchangeRate_USD, data$N_Vehicle.PriceIndex,  method="kendall")
+res2
+res3 <- cor.test(data$N_Vehicle.PriceIndex, data$N_Vehicle.InterestRate,  method="kendall")
+res3
+```
+
+
+When looking at the pairwise results obtained here, it is seen that the correlation values are almost the same with the values calculated before. Since the p-values of the tests are quite small, these tests can be trusted. 
+
+```{r message=FALSE,warning=FALSE}
+d<-data%>%group_by(year(Date))%>%
+  mutate(ExchangeRateUSD_VehicleInterestRate=cor(N_ExchangeRate_USD,N_Vehicle.InterestRate),
+         ExchangeRateUSD_VehiclePriceIndex=cor(N_ExchangeRate_USD,N_Vehicle.PriceIndex),
+         VehiclePriceIndex_VehicleInterestRate=cor(N_Vehicle.InterestRate,N_Vehicle.PriceIndex))
+
+
+d%>%
+  pivot_longer(.,cols=c(ExchangeRateUSD_VehicleInterestRate,ExchangeRateUSD_VehiclePriceIndex,VehiclePriceIndex_VehicleInterestRate))%>%
+  ggplot(., aes(x=year(Date), y=value)) +
+  geom_line( aes(color=name)) +
+  geom_point(aes( fill=name),shape=21, color="black", size=6) +
+  theme_ipsum()+
+  labs(fill="Between:",color="Between:",
+       y="Correlation",
+       x="Year")+
+  facet_wrap(~name)+
+  ggtitle("Pairwise Yearly Correlations")+
+  theme(legend.position = "bottom",
+        axis.text.x = element_text(angle = 45, hjust = 1),
+        strip.text.x = element_blank())+
+  scale_fill_discrete(labels=c("ExchangeRate-InterestRate","ExchangeRate-PriceIndex","PriceIndex-InterestRate"))+
+  scale_color_discrete(labels=c("ExchangeRate-InterestRate","ExchangeRate-PriceIndex","PriceIndex-InterestRate"))
+
+```
+
+```{r message=FALSE,warning=FALSE}
+d%>%mutate(avg_corr=sum(ExchangeRateUSD_VehicleInterestRate,
+                         ExchangeRateUSD_VehiclePriceIndex,
+                         VehiclePriceIndex_VehicleInterestRate)/(3*length(year(Date))))%>%
+  ggplot(., aes(x=year(Date), y=avg_corr)) +
+  geom_line( color="grey") +
+  geom_point(shape=21, color="black", fill="#69b3a2", size=6) +
+  theme_ipsum()+
+  labs(y="Correlation",
+       x="Year")+
+  ggtitle("Average of the Pairwise Correlations",
+          subtitle="Yearly")
+
+```
+
+Correlation values are recalculated annually so that deviations in some years do not affect the total correlation. In order to be able to say that the three are related to each other at the same time, it is necessary to look at all the pairwise correlation values separately. These years which are 2012, 2013, 2015, 2018, 2020 can be seen more clearly from the second chart. 
+
+Looking at the first graph, it can be said that these years, when the correlation is low, stem from the deviations in the interest rate because the high relationship between the exchange rate and the price index has always continued except for 2014.
+
+
+# Conclusion
+
+Firstly, the change and distribution of the selected economic data over time are examined, then similar charts are also plotted with the normalized data. Although the relationship between these three measures, whose monthly data is examined throughout the analysis, is very clear in economic manner, the relationships may change from time to time due to other real-life dynamics. By visualizing the time series, the findings can be summarized as follows: 
+
+- Mean values for all three measures tend to increase and variance values have also increased in recent years. 
+- The increase occurred rapidly in all three time series, therefore the mean values are close to their minimum values. 
+- The result obtained from normalized time series and correlation values is that the most correlated measures are the exchange rate and price index. - With the development in 2019 and the decision taken after the pandemic, the interest rate decreased, which led to a decrease in correlation values. There have been fluctuations in previous periods in the interest rate adapted a little later to other developments. 
+- The price index and exchange rate are highly correlated in all years except 2014. The year 2014 is worth analyzing. 
+- The interest rate which adapted slowly to the rapid increase in other measures between 2016 and 2018, caused the pairwise correlations to decrease in these years. 
+
+# References
+
+- *1.* [Relationship between Inflation and Interest Rates](https://www.mahfiegilmez.com/2014/05/enflasyon-ile-faiz-iliskisi.html#:~:text=Maliyet%20enflasyonu%20s%C3%B6z%20konusuysa%20%C5%9Fekilde,d%C3%BC%C5%9F%C3%BCrmek%20i%C3%A7in%20faizi%20d%C3%BC%C5%9F%C3%BCrmek%20gerekebilir.)
+
+- *2.* [BBC Turkish: Interest Decision of the Central Bank in 2019](https://www.bbc.com/turkce/haberler-turkiye-49111120)
+
+- *3.* [Data Source: Electronic Data Delivery System of the Central Bank](https://evds2.tcmb.gov.tr/)
+
+# Appendices
+
+ - *1.* [R Script](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/hw2draft.R) for the data visualization and manipulation.
+ - *2.* [Rmd file](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/IE360_HW2.Rmd) for the report.
