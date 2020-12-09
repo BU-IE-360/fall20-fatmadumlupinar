@@ -8,3 +8,9 @@
 [Here](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw1/IE360_HW1.html) is my analysis about inflation rate, unemployment rate and car sales amount in Turkey.
 
 You can access the R codes from this [RMD file](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw1/IE360_HW1.Rmd)
+
+### Homework 2
+
+[Here]() is my analysis about the correlation between the selected time series with the data provided by [EVDS](https://evds2.tcmb.gov.tr/). 
+
+You can access the R codes from this [R Script]()
