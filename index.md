@@ -13,4 +13,4 @@ You can access the R codes from this [RMD file](https://bu-ie-360.github.io/fall
 
 [Here](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/IE360_HW2.html) is my analysis about the correlation between the selected time series with the data provided by [EVDS](https://evds2.tcmb.gov.tr/). 
 
-You can access the R codes from this [R Script](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/hw2draft.R)
+You can access the R codes from this [R Script](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/hw2draft.R).
