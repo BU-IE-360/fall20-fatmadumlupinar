@@ -1,0 +1,249 @@
+---
+title: "IE360 Fall"
+author: "Fatma Nur Dumlupınar"
+date: "09 01 2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: yes
+    code_folding: hide
+    theme: journal
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+subtitle: Homework 3
+---
+
+# Introduction
+
+In my previous homework, I showed that some economic measures are closely related to each other. In this assignment, using some economic data that may also be related to each other, a time series regression model will be established and the next month's target variable will be forecasted.  
+
+First of all, the related variables and time series components should be selected to estimate the target variable, `Consumer Price Index for Food and Non-Alcoholic Beverages` obtained from [EVDS](https://evds2.tcmb.gov.tr/index.php?/evds/serieMarket). Since the exchange rate of USD , interest rate and CPI are seen to be interrelated for the vehicle product group in the previous homework, this time it will be examined considering that they may be related to each other for the food and non-alcoholic product group. In addition, the relationships with consumer confidence index will be examined and the most reasonable predictor variables will be selected step by step. In addition to these, it will be decided which time series components and lag values should be included in the model and the model will be created. At each step, the model performance values will be evaluated and whether the assumptions about residuals are met or not. Recall that the assumptions about residuals are: 
+
+ - Residuals are normally distributed with zero mean and constant variance.
+ - They are not autocorrelated. 
+ 
+So, this research aims to create a model that predicts the specified target variable by examining the relevant variables and components and to predict the next month's value with this model.
+
+# Analysis
+
+## Data Preparation
+
+Required packages and data are downloaded. 1-month, 6-month and 12-month lag values of CPI are added to the data containing USD exchange rate, consumer confidence index, personal interest rate. Then, the trend column is added to use if the trend component is needed in time series regression, as well as the year and month columns for seasonality.
+
+```{r message=FALSE,warning=FALSE}
+
+library(readxl)
+library(zoo)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(forecast)
+library(corrplot)
+library(useful)
+library(hrbrthemes)
+ 
+data<-read_excel("data/data.xlsx")  
+data<-data%>%
+  mutate(Tarih=as.yearmon(Tarih))%>%
+  rename(Date=Tarih,
+         CPI=`TP FG J01`,
+         ExRate_dollar=`TP DK USD S YTL`,
+         interestRate=`TP KTF10`,
+         cci=`TP GY1 N2`)%>%
+  mutate(lag6=lag(CPI,6),
+         lag1=lag(CPI,1),
+         lag12=lag(CPI,12))
+cci1<-read_excel("data/cci1.xlsx")%>%mutate(Tarih=as.yearmon(Tarih))%>%
+  rename(Date=Tarih,
+         cci1=`TP TG2 Y01`)
+data<-left_join(data,cci1)
+data<-data[,-5]%>%rename(cci=cci1)%>%relocate(cci,.before = lag6)
+
+
+data<-data%>%mutate(trend=row_number(),
+                     month=month(Date),
+                     year=year(Date))
+
+```
+
+## Visualization of the Target Variable
+
+The monthly change of the target variable, consumer price index for food and non-alcoholic beverages, over time is plotted.
+
+```{r message=FALSE,warning=FALSE}
+ggplot(data,aes(x=Date,y=CPI))+
+  geom_line(size=1.2, color="darkred")+
+  scale_x_yearmon()+
+  labs(x="Date",
+       y="CPI for Food and Non-Alcoholic Beverages",
+       title="Monthly CPI for Food and Non-Alcoholic Beverages",
+       subtitle="Over the years between 2003-2020")+
+  theme_ipsum()
+```
+
+## Visualization of the Related Time Series Objects and Correlations
+
+Time series, which are candidate to be predictor in the model are plotted. It is seen that data is available after 2012 for consumer price index (cci). Also, USD exchange rate, CPI, and its lag values have similar patterns over the years. 
+
+Correlations of interest rate and cci with CPI are negative, while those of other variables are positive. Since the correlation of variables other than interest rate is high, these variables can be taken as input when creating a time series regression model. 
+
+```{r message=FALSE,warning=FALSE}
+TimeSeries<-ts(data[,c(2,5,8,3,6,7,4)],frequency=12,start=c(2003,1))
+plot(TimeSeries)
+cor_numVar <- cor(data[,c(4,3,2,5,6,7,8)], use="pairwise.complete.obs") 
+
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+```
+
+
+## Time Series Regression Modelling
+
+First, CPI's logarithm is taken to linearize it and used as target variable in the models. Likewise, variables with nonlinear increase can be included in the models as a predictor by taking the logarithm. 
+
+```{r message=FALSE,warning=FALSE}
+fit1<-lm(log(CPI)~trend+log(ExRate_dollar),data=data%>%filter(Date<"2020-12"))
+summary(fit1)
+checkresiduals(fit1)
+
+```
+
+Since we know that CPI increases with time, we can say that it has a trend component and we can choose trend as the first predictor. Also, we can include the USD exchange rate, which has a very similar pattern with CPI, to the model in the first step. When looking at the results, it is seen that both added variables are significant. It can also be said that the model is successful by looking at its p-value and adjusted R squared. However, when checking whether assumptions are met, it is clear that the model is not sufficient. The reasons are that mean of residuals is not 0 and autocorrelation is quite high. Also, the model needs to be enhanced to ensure normality assumption by receiving normally distributed residuals.
+
+
+```{r message=FALSE,warning=FALSE}
+fit2<-lm(log(CPI)~trend+log(ExRate_dollar)+
+           as.factor(month),data=data%>%filter(Date<"2020-12"))
+summary(fit2)
+checkresiduals(fit2)
+```
+
+
+We can use the month variable to add the seasonality component to the model. This eliminates the seasonality seen in the previous autocorrelation function and decreases residual standard error. However, the model should be improved to meet all assumptions mentioned in the first model. 
+
+When lag values with high correlation values are tested as predictors to improve the model, it is seen that the variable that reduces the residual standard error the most is 1-month lag values. So, 1-month lag values of CPI are added to the model. 
+
+```{r message=FALSE,warning=FALSE}
+fit<-lm(log(CPI)~trend+log(ExRate_dollar)+log(lag1)+
+          as.factor(month),data=data%>%filter(Date<"2020-12"))
+summary(fit)
+checkresiduals(fit)
+
+```
+
+When we look at the summary of the regression model, all the variables added as predictors are significant and p-value of the model is low enough to reject the null hypothesis. Also, residual standard error is the lowest one and adjusted R-squared is the highest one compared to the previous models. 
+
+In addition, residual analysis is made. Looking at the first plot, it is seen that the mean of residuals is at 0 level, and their variance is constant except for some date ranges. Also, the ACF plot shows that the autocorrelation does not exceed the limits too much. Although the p-value obtained from the Breusch-Godfrey test indicates that there is an autocorrelation when the alpha is 0.05, it is is not small enough to reject the null hypothesis. So, this p-value value cannot strongly prove that there is an autocorrelation. Finally, it can be observed that the distribution of residuals fits the normal distribution well. 
+
+Finally, it is checked whether the cci variable should be added to the model. However, it is not selected as a predictor. The reason is that if it is added to the model, the degrees of freedom of the model decreases very much and there is no significant decrease in residual standard error.
+
+
+## Visualization of Results Obtained from the Final Model
+
+### Model Results
+
+```{r message=FALSE,warning=FALSE}
+
+predicted=predict(fit,newdata=data%>%filter(Date=="2020-12"))
+binded1<-cbind(data[-c(1,216),],predicted=fitted(fit),residuals=residuals(fit))
+binded2<-cbind(data[216,],predicted,residuals=NA)
+data<-rbind(binded1,binded2)
+
+ggplot(data = data%>%filter(Date<"2020-12"))+
+  geom_point(aes(x=exp(predicted),y=residuals))+
+  geom_abline(slope=1,color="red")+
+  labs(x="CPI predicted",
+       y="Residuals",
+       title="Residuals Vs. Predicted Values")+
+  theme_ipsum()
+
+ggplot(data = data%>%filter(Date<"2020-12"))+
+  geom_point(aes(x=lag1,y=residuals))+
+  geom_abline(slope=1,color="red")+
+  labs(x="lag1",
+       y="Residuals",
+       title="Residuals Vs. lag1")+
+  theme_ipsum()
+
+ggplot(data = data%>%filter(Date<"2020-12"))+
+  geom_point(aes(x=ExRate_dollar,y=residuals))+
+  geom_abline(slope=1,color="red")+
+  labs(x="USD Exchange Rate",
+       y="Residuals",
+       title="Residuals Vs. USD Exchange Rate")+
+  theme_ipsum()
+
+ggplot(data = data%>%filter(Date<"2020-12"))+
+  geom_point(aes(x=exp(predicted),y=CPI))+
+  geom_abline(slope=1,color="red")+
+  labs(x="CPI predicted",
+       y="CPI actual",
+       title="Actual Vs. Predicted Values")+
+  theme_ipsum()
+
+
+
+```
+
+
+From the first plots, it can be seen that the mean of residuals is close to 0 and the variance is constant except for a small number of outliers. Also, the last plot shows how well the predicted CPI fits the actual values.
+
+### Forecasting
+
+With the final model, estimated CPI value for the month of December,2020 is: 
+
+```{r message=FALSE,warning=FALSE}
+exp(predicted)
+
+```
+
+
+The values of actual and fitted CPI values obtained from the model are shown in the plots below.
+
+```{r message=FALSE,warning=FALSE}
+colors<-c("Predicted" = "red", "Actual" = "limegreen")
+ggplot()+
+  geom_line(data=data,aes(x=Date,y=exp(predicted),color="Predicted"),size=1.2)+
+  geom_line(data=data,aes(x=Date,y=CPI,color="Actual"),size=1.2)+
+  labs(x="Date",
+       y="CPI",
+       title="Actual and Predicted Values between 2003-2020",
+       subtitle = "Prediction of CPI in 2020-12",
+       color="CPI")+
+  theme_ipsum()+
+  theme(axis.text.x = element_text(angle = 45))+
+  scale_color_manual(values = colors)
+
+ggplot()+
+  geom_line(data=data%>%filter(Date>"2019-12"),aes(x=Date,y=exp(predicted),color="Predicted"),size=1.2)+
+  geom_line(data=data%>%filter(Date>"2019-12"),aes(x=Date,y=CPI,color="Actual"),size=1.2)+
+  labs(x="Date",
+       y="CPI",
+       title="Actual and Predicted Values",
+       subtitle = "Closer Look at the Prediction of CPI in 2020-12",
+       color="CPI")+
+  theme_ipsum()+
+  theme(axis.text.x = element_text(angle = 45))+
+  scale_color_manual(values = colors)
+
+
+```
+
+
+
+# Conclusion
+
+Looking at the correlation table, it is seen that the relationship between the personal interest rate and CPI value is weak. So, the personal interest rate was not included in the model. Other variables became candidates to be model predictors, but their effects on the model were examined in the next step due to their correlations with each other. 
+
+The time series regression model is developed by adding the variables to the model step by step and measuring the performance of the model. With the inclusion of the trend and seasonality components of the CPI time series, the autocorrelation values and the mean of residuals have been reduced. In the last step, 1-month lag value, which is the best performing lag value, is selected for the model to obtain constant variance in residuals. 
+In the final model, all assumptions mentioned before are tried to be met. 
+
+As a result of the estimation made with the best model obtained, the CPI value is determined as 598.6036 in the next December. In other words, an increase in CPI value is expected in the next month according to our current model. 
+
+# Appendices
+
+ - *1.* [R Script](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/hw3.R) for the codes.
+ - *2.* [Rmd file](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw2/IE360_HW3.Rmd) for the report.
