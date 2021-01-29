@@ -1,0 +1,417 @@
+---
+title: "IE360 Fall"
+author: "Fatma Nur Dumlupınar"
+date: "29 01 2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: yes
+    code_folding: hide
+    theme: journal
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+subtitle: Homework 4
+---
+
+# Introduction
+
+The amount of electricity consumption in Turkey is a time series example. In this report, daily average values will be created by using hourly electricity consumption data on [EPİAŞ's website](https://seffaflik.epias.com.tr/transparency/). In this way, time series analysis will be made. Consumption values of 14-day period will be forecasted with the established models and performance will be measured.
+The amount of electricity consumption between January 1, 2017 and January 8, 2021 is available as train data, and the 14-day period between January 9, 2021 and January 22, 2021 is available as test data. Before starting to estimate, the stationarity should be checked. Also, the following assumptions about residuals should be ensured in the model: 
+
+ - Residuals are normally distributed with zero mean and constant variance.
+ - They are not autocorrelated. 
+ 
+# Analysis
+
+## Packages and Data Preparation
+
+*Train Data*
+
+```{r message=FALSE,warning=FALSE}
+library(forecast)
+library(urca)
+library(dplyr)
+library(ggplot2)
+library(stats)
+library(lubridate)
+library(hrbrthemes)
+Consumption<-read.csv("GercekZamanliTuketim-01012017-08012021.csv")
+str(Consumption)
+Consumption$Tarih<-as.Date(Consumption$Tarih,format = "%d.%m.%Y")
+Consumption$Tüketim.Miktarı..MWh.<-gsub("\\.", "", (Consumption$Tüketim.Miktarı..MWh.))
+Consumption$Tüketim.Miktarı..MWh.<-gsub("\\,", ".", (Consumption$Tüketim.Miktarı..MWh.))
+Consumption$Tüketim.Miktarı..MWh.<-as.numeric(Consumption$Tüketim.Miktarı..MWh.)
+Consumption<-Consumption%>%
+  rename(Date=Tarih,Consumption=Tüketim.Miktarı..MWh.,Hour=Saat)%>%
+  group_by(Date)%>%
+  summarise(meanConsumption=mean(Consumption))
+
+
+```
+
+*Test Data*
+
+```{r message=FALSE,warning=FALSE}
+test_data<-read.csv("test-09012021-23012021.csv")
+str(test_data)
+
+test_data$Tarih<-as.Date(test_data$Tarih,format = "%d.%m.%Y")
+test_data$Tüketim.Miktarı..MWh.<-gsub("\\.", "", (test_data$Tüketim.Miktarı..MWh.))
+test_data$Tüketim.Miktarı..MWh.<-gsub("\\,", ".", (test_data$Tüketim.Miktarı..MWh.))
+test_data$Tüketim.Miktarı..MWh.<-as.numeric(test_data$Tüketim.Miktarı..MWh.)
+test_data<-test_data%>%
+  rename(Date=Tarih,Consumption=Tüketim.Miktarı..MWh.,Hour=Saat)%>%
+  group_by(Date)%>%
+  summarise(meanConsumption_test=mean(Consumption))
+
+```
+
+
+## Data Visualization
+
+```{r message=FALSE,warning=FALSE}
+TsConsumption<-ts(Consumption$meanConsumption,freq=365,start=c(2017,1))
+ts.plot(TsConsumption)
+```
+
+```{r message=FALSE,warning=FALSE}
+TsConsumption<-ts(Consumption$meanConsumption,freq=7)
+plot(decompose(TsConsumption))
+tsdisplay(TsConsumption,lag=20)
+```
+
+*Stationarity*
+
+To check if train data stationary or not, we can implement KPSS test.
+
+```{r message=FALSE,warning=FALSE}
+unt_test=ur.kpss(TsConsumption) 
+summary(unt_test)
+```
+
+The results above show that the test-statistic is smaller than the critical value, which means we fail to reject null hypothesis. So, it is possible to say the data is stationary and we can start time series modelling. 
+
+## Modelling 
+
+### ARIMA Models with Differencing
+
+Since the data has weekly seasonality as seen at the lag 7 on ACF plot, taking weekly difference of the consumption values might be an option to eliminate seasonality.
+
+```{r message=FALSE,warning=FALSE}
+diff<-diff(TsConsumption,7)
+
+modeld<-arima(diff)
+modeld
+tsdisplay(residuals(modeld))
+
+```
+
+
+AIC value of the resulting model is 27068.02. Residuals arise from the model are autocorrelated and the model requires to be improved. MA(2) and seasonal AR(1) can be added to the model considering ACF and PACF plots.
+
+```{r message=FALSE,warning=FALSE}
+modell<-arima(diff,order=c(0,0,2),seasonal=c(1,0,0))
+modell
+tsdisplay(residuals(modell),lag=25)
+
+```
+
+Even though the AIC value decrease, still, the model requires to be improved because of the high autocorrelation values. AR(2) can be added to the model.
+
+```{r message=FALSE,warning=FALSE}
+modell<-arima(diff,order=c(2,0,2),seasonal=c(0,0,1))
+modell
+tsdisplay(residuals(modell),lag=25)
+
+```
+
+
+In this model, ACF and PACF plots give pretty good results although the values at lag 5 and lag 6 are a little high. As in other models, assumptions about mean and variance are also confirmed. 
+AIC of the model is 24413.8.
+
+Auto.arima function should also be checked to see if there is an option for better AIC.
+
+```{r message=FALSE,warning=FALSE}
+fit<-auto.arima(TsConsumption,seasonal=TRUE)
+fit
+tsdisplay(residuals(fit),lag=20)
+```
+
+Autocorrelation values are a little higher than the ones on the last plots. Also, the AIC value increases with auto.arima. 
+
+The best AIC value in this part is 24413.8.
+
+### ARIMA Models with Decomposition
+
+Another way to create a time series model is decomposing the time series and setting a model on the random component. Trend and seasonality components will be added after the random component is predicted with the final model and forecasted values of electiricity consumption are received. 
+
+Since variance is not changing over time, the time series object can be decomposed in `additive` way.
+
+```{r message=FALSE,warning=FALSE}
+ConsDec<-decompose(TsConsumption,type="additive")
+random<-ConsDec$random
+ts.plot(random)
+tsdisplay(random)
+```
+
+Since the autocorrelation is high at lag 1, AR(1) can be added to the model. Also, the value at the second lag on PACF plot lays below 0 and approaching 0 with time. So, MA(2) can be added to model.
+
+```{r message=FALSE,warning=FALSE}
+model1<-arima(random,order=c(1,0,2))
+tsdisplay(residuals(model1))
+model1
+```
+
+The AIC resulting from the model is 23266.79 which is lower than the best value of the previous part. However, the value at lag 3 on the plots is high and approaching zero again. MA(3) can be tried.
+
+```{r message=FALSE,warning=FALSE}
+model2<-arima(random,order=c(1,0,3))
+tsdisplay(residuals(model2))
+model2
+```
+
+The AIC is decreased but the value at lag 4 is high. This time, AR(4) can be tried.
+
+```{r message=FALSE,warning=FALSE}
+model4<-arima(random,order=c(4,0,3))
+model4
+tsdisplay(residuals(model4))
+```
+
+The AIC value decreases to 23071.61 which is the best for now. Also, we can say autocorrelation values lay between the control limits. (This model is going to be selected.)
+
+Still, we can try auto.arima to see if there is a better option.
+
+```{r message=FALSE,warning=FALSE}
+fit_random<-auto.arima(random, seasonal=TRUE)
+fit_random
+tsdisplay(residuals(fit_random),lag=20)
+```
+
+However, auto.arima could not give better result in terms of AIC and ACF/PACF plots.
+
+### Model Selection
+
+The model whose AIC value is 23071.61 selected.  
+
+```{r message=FALSE,warning=FALSE}
+model_fitted <- random - residuals(model4)
+model_fitted_transformed <- model_fitted+ConsDec$trend+ConsDec$seasonal
+
+plot(TsConsumption, xlab = "Time Index", ylab = "Consumption",main="Actual and Fitted Values")
+points(model_fitted_transformed, type = "l", col = 2, lty = 2)
+```
+
+## Forecasting with ARIMA(4,0,3)
+
+Consumption values are plotted with the forecasted values received from the model.
+
+```{r message=FALSE,warning=FALSE}
+model_forecast <- predict(model4, n.ahead = 17)$pred
+model_forecast=ts(model_forecast,frequency = 7,start=c(2021,2))
+#use last trend value
+last_trend_value <-tail(ConsDec$trend[!is.na(ConsDec$trend)],1)
+seasonality=ConsDec$seasonal[5:21]
+#back to the original series
+model_forecast=model_forecast+last_trend_value+seasonality
+
+set.seed(1)
+TsConsumption<-ts(Consumption$meanConsumption,freq=365,start=c(2017,1,1))
+TS<-ts(model_forecast,freq=365,start=c(2021,1,6))
+df<-data.frame(Y=as.matrix(TS), date=time(TS))
+date.range <- ymd(paste(2021,1,6:22,sep="-"))
+df$date<-date.range
+
+df<-df%>%rename(forecasted=Y,
+                Date=date)
+
+
+colors<-c("Forecasted" = "limegreen", "Actual" = "darkred")
+
+all<-full_join(Consumption,df,by="Date")
+test<-full_join(test_data,all,by="Date")
+ggplot(all)+
+  geom_line(aes(x=Date,y=meanConsumption,color="Actual"))+
+  geom_line(aes(x=Date,y=forecasted,color="Forecasted"))+
+  scale_color_manual(values = colors)+
+  labs(x="Date",
+       y="Consumption",
+       title="Actual and Forecasted Values",
+       color="Consumption")+
+  theme_ipsum()
+
+ggplot(all%>%filter(Date>as.Date("2020-11-01")))+
+  geom_line(aes(x=Date,y=meanConsumption,color="Actual"),size=1.2)+
+  geom_line(aes(x=Date,y=forecasted,color="Forecasted"),size=1.2)+
+  scale_color_manual(values = colors)+
+  labs(x="Date",
+       y="Consumption",
+       title="Actual and Forecasted Values",
+       subtitle = "Closer Look at the Forecast",
+       color="Consumption")+
+  theme_ipsum()
+```
+
+## Forecasting with ARIMA(1,0,3)
+
+```{r message=FALSE,warning=FALSE}
+model_forecast1 <- predict(model2, n.ahead = 17)$pred
+model_forecast1=ts(model_forecast1,frequency = 7,start=c(2021,2))
+
+#back to the original series
+model_forecast1=model_forecast1+last_trend_value+seasonality
+
+set.seed(1)
+TsConsumption<-ts(Consumption$meanConsumption,freq=365,start=c(2017,1,1))
+TS1<-ts(model_forecast1,freq=365,start=c(2021,1,6))
+df1<-data.frame(Y=as.matrix(TS1), date=time(TS1))
+date.range <- ymd(paste(2021,1,6:22,sep="-"))
+df1$date<-date.range
+
+df1<-df1%>%rename(forecasted=Y,
+                Date=date)
+
+
+colors<-c("Forecasted" = "limegreen", "Actual" = "darkred")
+
+all1<-full_join(Consumption,df1,by="Date")
+test1<-full_join(test_data,all1,by="Date")
+
+ggplot(all1)+
+  geom_line(aes(x=Date,y=meanConsumption,color="Actual"))+
+  geom_line(aes(x=Date,y=forecasted,color="Forecasted"))+
+  scale_color_manual(values = colors)+
+  labs(x="Date",
+       y="Consumption",
+       title="Actual and Forecasted Values",
+       color="Consumption")+
+  theme_ipsum()
+
+ggplot(all1%>%filter(Date>as.Date("2020-11-01")))+
+  geom_line(aes(x=Date,y=meanConsumption,color="Actual"),size=1.2)+
+  geom_line(aes(x=Date,y=forecasted,color="Forecasted"),size=1.2)+
+  scale_color_manual(values = colors)+
+  labs(x="Date",
+       y="Consumption",
+       title="Actual and Forecasted Values",
+       subtitle = "Closer Look at the Forecast",
+       color="Consumption")+
+  theme_ipsum()
+
+```
+
+
+## Evaluation
+
+To evaluate forecasted results, the values are compared with the actual ones using the test data. The plot below shows the forecasted and the realized (actual) consumption values for 14-day test period.
+
+
+**The Model with the second best AIC : ARIMA(1,0,3) on random component** 
+
+```{r message=FALSE,warning=FALSE}
+test1<-test1%>%filter(Date>=as.Date("2021-01-09")&
+                      Date<as.Date("2021-01-23"))
+ggplot(test1)+
+  geom_line(aes(x=Date,y=meanConsumption_test,color="Actual"),size=1.2)+
+  geom_line(aes(x=Date,y=forecasted,color="Forecasted"),size=1.2)+
+  scale_color_manual(values = colors)+
+  labs(x="Date",
+       y="Consumption",
+       title="Actual and Forecasted Values",
+       color="Consumption")+
+  theme_ipsum()
+```
+
+
+
+
+```{r message=FALSE,warning=FALSE}
+error_test <- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  df = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(df)
+  
+}
+
+
+error_test(test1$meanConsumption_test,test1$forecasted)
+
+```
+
+**The Model with the best AIC : ARIMA(4,0,3) on random component** 
+```{r message=FALSE,warning=FALSE}
+test<-test%>%filter(Date>=as.Date("2021-01-09")&
+                      Date<as.Date("2021-01-23"))
+ggplot(test)+
+  geom_line(aes(x=Date,y=meanConsumption_test,color="Actual"),size=1.2)+
+  geom_line(aes(x=Date,y=forecasted,color="Forecasted"),size=1.2)+
+  scale_color_manual(values = colors)+
+  labs(x="Date",
+       y="Consumption",
+       title="Actual and Forecasted Values",
+       color="Consumption")+
+  theme_ipsum()
+
+```
+
+
+Overall performance is given below. 
+
+```{r message=FALSE,warning=FALSE}
+error_test <- function(actual, forecasted){
+  n=length(actual)
+  error = actual-forecasted
+  mean=mean(actual)
+  sd=sd(actual)
+  bias = sum(error)/sum(actual)
+  mape = sum(abs(error/actual))/n
+  mad = sum(abs(error))/n
+  wmape = mad/mean
+  df = data.frame(n,mean,sd,bias,mape,mad,wmape)
+  return(df)
+}
+
+
+error_test(test$meanConsumption_test,test$forecasted)
+
+
+```
+
+Daily performance is given for 14-day period. 
+
+```{r message=FALSE,warning=FALSE}
+daily_test <- function(actual, forecasted){
+error = actual-forecasted
+daily_bias = (error)/(actual)
+daily_mape =abs(error/actual)
+df = data.frame(daily_bias,daily_mape)
+return(df)
+}
+
+actual<-test$meanConsumption_test
+forecasted<-test$forecasted
+for(i in 1:14){
+print(paste("Day",i,":"))
+print(daily_test(actual[i], forecasted[i]))
+}
+```
+
+So, the best fit is received for Day 3, and the worst is for Day 8.
+
+# Conclusion
+
+The aim of this assignment was to get as stationary series as possible and build a time series model. For this purpose, constant variance and mean were obtained except for special days. Then, the best arima model was tried to be obtained with two different approaches. These were differencing and decomposition approaches. The best results were obtained by performing decomposition. The consumption values of the 14-day test period were estimated using the best two models from this section. As a result, the wmape value of the model with the best AIC value was lower. Since there was not much difference between the AIC values of the models, wmape values were also close to each other. The daily performance values of the best performing model were also measured. Accordingly, the best result was obtained for the third and the worst result for the eighth day.
+
+# Appendices
+
+ - *1.* [Rmd file](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw4/IE360_HW4_Report.Rmd) for the codes.
