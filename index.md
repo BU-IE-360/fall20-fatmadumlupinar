@@ -33,4 +33,10 @@ You can access the R codes from this [R Script](https://bu-ie-360.github.io/fall
 
 [Here](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw4/IE360_HW4_Report.html) is my analysis for Homework 4.
 
-You can access the R codes from this [RMD File](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw4/IE360_HW4_Report.Rmd).
+You can access the R codes from this [RMD File](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw4/IE360_HW4_Report.Rmd). 
+
+### Project 
+
+[Here](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/project/IE360_Project_Report.html) is our report for the project. You can access to codes from the link at the end of the report.
+
+
