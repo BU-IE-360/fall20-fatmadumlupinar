@@ -25,7 +25,7 @@ You can access the R codes from this [R Script](https://bu-ie-360.github.io/fall
 
 [Here](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw3/IE360_HW3.html) is my analysis for Homework 3.
 
-You can access the R codes from this [R Script](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw3/hw3.R).
+You can access the R codes from this [R Script](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw3/hw3.R)
 
 ### Homework 4
 
