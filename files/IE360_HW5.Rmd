@@ -1,0 +1,330 @@
+---
+title: "IE360 Fall"
+author: "Fatma Nur Dumlupınar"
+date: "18 02 2021"
+output:
+  html_document:
+    toc: yes
+    toc_depth: 3
+    toc_float: yes
+    number_sections: yes
+    code_folding: hide
+    theme: journal
+  pdf_document:
+    toc: yes
+    toc_depth: '3'
+subtitle: Homework 5
+---
+
+
+# Introduction
+
+In this assignment, variables that can affect sales have been analyzed with the correlation matrix and scatter plots by using sales data. Accordingly, the regression model was established using the stepwise regression steps. Also, the results were compared using the step() function in R. Required packages and data can be seen below.
+
+```{r, warning=FALSE,message=FALSE}
+library(data.table)
+library(corrplot)
+library(ggplot2)
+library(hrbrthemes)
+library(psych)
+library(forecast)
+library(MASS)
+
+data<-fread("sales.txt")  
+str(data)
+```
+
+# Analysis
+
+## PART A
+
+
+```{r, warning=FALSE,message=FALSE}
+
+cor_numVar <- cor(data, use="pairwise.complete.obs") 
+
+corrplot.mixed(cor_numVar, tl.col="black", tl.pos = "lt")
+
+ggplot(data,aes(x=APT,y=SALES))+
+  geom_point(aes(color=SALES/APT))+
+  geom_smooth()+
+  theme_ipsum()
+
+ggplot(data,aes(x=AGE,y=SALES))+
+  geom_point(aes(color=SALES/AGE))+
+  geom_smooth()+
+  theme_ipsum()
+
+ggplot(data,aes(x=ANX,y=SALES))+
+  geom_point(aes(color=SALES/ANX))+
+  geom_smooth()+
+  theme_ipsum()
+
+ggplot(data,aes(x=EXP,y=SALES))+
+  geom_point(aes(color=SALES/EXP))+
+  geom_smooth()+
+  theme_ipsum()
+
+ggplot(data,aes(x=GPA,y=SALES))+
+  geom_point(aes(color=SALES/GPA))+
+  geom_smooth()+
+  theme_ipsum()
+
+
+pairs.panels(data, 
+             method = "pearson", # correlation method
+             hist.col = "#00AFBB",
+             density = TRUE,  # show density plots
+             ellipses = TRUE # show correlation ellipses
+)
+
+```
+
+
+When choosing the first variables for the model, we must basically consider two things. The first is that the correlation between the dependent variable and the independent variable is high. Second, not choosing two independent variables with high correlation at the same time. When we think in this way, we see that the correlation of variables other than ANX with sales is high. We should not use ANX variable with low correlation in the model. Moreover, since the correlation values between AGE-GPA and AGE-EXP pairs are high, it would be reasonable not to use these pairs in the same model. We see that the correlation of AGE variable with sales is higher compared to the other two variables. For this reason, using the AGE variable may give a better result. In the last case, we can say that AGE and remaining APT variables are required for the model. 
+The results we obtained from scatter plots also confirm the correlation matrix. Likewise, we can see that there is no linear relationship between ANX variable and sales, but a linear relationship in AGE-EXP and AGE-GPA pairs. 
+
+## PART B
+
+### Stepwise Regression
+
+**Step 1** 
+
+The variable having the highest absolute correlation value, which is AGE, is chosen in the initial model. 
+
+```{r, class.source="fold-show"}
+fit1<-lm(SALES~AGE,data=data)
+
+```
+
+**Step 2** 
+
+Remaining variables are added to the model separately, and the significance of the new variable is tested with an F-test.
+
+```{r, class.source="fold-show"}
+fit2<-lm(SALES~AGE+APT,data=data)
+anova(fit1,fit2)
+
+fit3<-lm(SALES~AGE+GPA,data=data)
+anova(fit1,fit3)
+
+fit4<-lm(SALES~AGE+EXP,data=data)
+anova(fit1,fit4)
+
+fit5<-lm(SALES~AGE+ANX,data=data)
+anova(fit1,fit5)
+
+
+#APT is selected, current model with AGE, APT
+
+```
+
+The variable that corresponds to largest F-statistic, which is APT, is selected and the model is updated by adding APT.
+
+**Step 3**
+
+The model is built by removing each variable in the current model separately (except the last one added to the model). The significance of the removed variable is tested with an F-test.
+
+
+```{r, class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT,data=data)
+
+fit2<-lm(SALES~APT,data=data)
+anova(fit1,fit2)
+
+# dont change the current model, current model with AGE, APT
+```
+
+The F-statistic is higher than the critical F value, so the model is not changed.
+
+**Step 4** 
+
+Steps 2 and 3 are repeated until all possible additions are nonsignificant and all possible deletions are significant.
+
+*Back to Step 2*
+
+Remaining variables are added to the model separately, and the significance of the new variable is tested with an F-test. 
+
+```{r, class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT,data=data)
+
+fit2<-lm(SALES~AGE+APT+GPA,data=data)
+anova(fit1,fit2)
+
+fit3<-lm(SALES~AGE+APT+EXP,data=data)
+anova(fit1,fit3)
+
+fit4<-lm(SALES~AGE+APT+ANX,data=data)
+anova(fit1,fit4)
+
+# smallest pvalue with variable GPA which will be added to the model
+
+```
+
+The variable that corresponds to largest F-statistic, which is GPA, is selected and the model is updated by adding GPA.
+
+*Step 3* 
+
+The model is built by removing each variable in the current model separately (except the last one added to the model). The significance of the removed variable is tested with an F-test.
+
+
+```{r, class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT+GPA,data=data)
+
+fit2<-lm(SALES~APT+GPA,data=data)
+anova(fit1,fit2)
+
+fit3<-lm(SALES~AGE+GPA,data=data)
+anova(fit1,fit3)
+
+# F-statistics are high, dont change the model
+# variables in the current model: AGE,APT,GPA
+
+```
+
+The F-statistics are higher than the critical F value, so the model is not changed.
+
+*Back to Step 2* 
+
+Remaining variables are added to the model separately, and the significance of the new variable is tested with an F-test. 
+
+
+```{r, class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT+GPA,data=data)
+
+fit2<-lm(SALES~AGE+APT+GPA+EXP,data=data)
+anova(fit1,fit2)
+
+fit3<-lm(SALES~AGE+APT+GPA+ANX,data=data)
+anova(fit1,fit3)
+
+#smallest pvalue with the variable ANX which will be added to the model
+
+```
+
+The variable that corresponds to largest F-statistic, which is ANX, is selected and the model is updated by adding ANX. 
+
+
+*Step 3* 
+
+The model is built by removing each variable in the current model separately (except the last one added to the model). The significance of the removed variable is tested with an F-test.
+
+
+```{r, class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT+GPA+ANX,data=data)
+
+fit2<-lm(SALES~APT+GPA+ANX,data=data)
+anova(fit1,fit2)
+
+fit3<-lm(SALES~AGE+GPA+ANX,data=data)
+anova(fit1,fit3)
+
+fit4<-lm(SALES~AGE+APT+ANX,data=data)
+anova(fit1,fit4)
+
+# Fstatistic is smaller than the critical value when removing GPA from the model. 
+# current model with the variable AGE,APT,ANX
+
+```
+
+
+Since F-statistic is small then critical F value when testing the significance of the removed GPA, the current model is updated by removing GPA.
+
+
+*Back to Step 2* 
+
+There is no variable left. Only GPA is not in the current model and it was removed in the previous step.
+
+```{r, class.source="fold-show"}
+# no other variable to add
+
+```
+
+*Step 3*
+
+The model is built by removing each variable in the current model separately (except the last one added to the model). The significance of the removed variable is tested with an F-test.
+
+```{r, class.source="fold-show"}
+# backward
+
+fit1<-lm(SALES~AGE+APT+ANX ,data=data)
+
+fit2<-lm(SALES~AGE+APT ,data=data)
+anova(fit1,fit2)
+
+fit3<-lm(SALES~AGE+ANX ,data=data)
+anova(fit1,fit3)
+
+fit4<-lm(SALES~APT+ANX ,data=data)
+anova(fit1,fit4)
+# F-statistic is smaller than the critical value when removing ANX, ANX is removed
+#variables in the final model: AGE, APT
+```
+
+Since F-statistic is small then critical F value when testing the significance of the removed ANX, the current model is updated by removing ANX. So the variables in the current model: AGE, APT. This scenario is tested at the beginning. So, there is no need to iterate again with these variable.
+
+
+
+### Final Model 
+
+The final model received from stepwise regression is as follows:
+
+```{r, warning=FALSE,message=FALSE, class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT ,data=data)
+summary(fit1)
+checkresiduals(fit1)
+
+```
+
+## PART C
+
+The resulted model coming from step() function is the same as the model received previously.
+
+```{r, warning=FALSE,message=FALSE,class.source="fold-show"}
+summary(lm1 <- lm(SALES ~ ., data = data))
+slm1 <- step(lm1,direction = "both")
+summary(slm1)
+slm1$anova
+
+```
+
+## PART D
+
+```{r, warning=FALSE,message=FALSE}
+summary<-summary(fit1)
+summary
+sigma<-summary$sigma
+sigma^2
+
+```
+According to the results obtained from the summary of the model, estimated values are found as: 
+
+Intercept: -83.8357 
+Coefficient of AGE: 5.7969 
+Coefficient of APT: 0.2015 
+Residual Variance: 14.35064 
+
+
+## PART E 
+
+H0: High school GPA of a person does not have an influence on sales value. (Coefficient of GPA = 0) 
+H1: High school GPA of a person has an influence on sales value. (Coefficient of GPA != 0) 
+
+
+```{r, warning=FALSE,message=FALSE,class.source="fold-show"}
+fit1<-lm(SALES~AGE+APT ,data=data)
+
+fit2<-lm(SALES~AGE+APT+GPA ,data=data)
+anova(fit1,fit2)
+
+```
+
+P-value of the test is 0.6611 which is greater than alpha(=0.1), so we fail to reject H0. Coefficient of GPA becomes 0 and it does not affect sales value. 
+
+# Conclusion 
+
+It is seen that the model obtained by following the stepwise regression steps and the model result given by the step function are the same. Also, in hypothesis testing for the GPA variable, it is seen that GPA has no effect on sales.
+
+# Appendices
+
+Codes in the RMD file [here](https://bu-ie-360.github.io/fall20-fatmadumlupinar/files/hw5/IE360_HW5.Rmd)
